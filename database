@@ -1,0 +1,427 @@
+-- =============================================
+-- 1. KHOI TAO DATABASE
+-- =============================================
+USE master;
+GO
+IF EXISTS (SELECT name FROM sys.databases WHERE name = N'GameTheBai')
+    DROP DATABASE GameTheBai;
+GO
+CREATE DATABASE GameTheBai;
+GO
+USE GameTheBai;
+GO
+
+-- =============================================
+-- 2. TAO CAU TRUC BANG (GIU NGUYEN & BO SUNG)
+-- =============================================
+
+-- Bang 1: Thu vien the bai
+CREATE TABLE ThuVienTheBai (
+    TheID INT PRIMARY KEY IDENTITY(1,1),
+    MaThe NVARCHAR(20) NOT NULL,
+    TenThe NVARCHAR(100) NOT NULL,
+    HaoTonMana INT DEFAULT 1,
+    CongSatThuong INT DEFAULT 0,
+    GiaTriGiap INT DEFAULT 0,
+    GiamStress INT DEFAULT 0,
+    GiamKietSuc INT DEFAULT 0,
+    HoiMana INT DEFAULT 0,
+    MoTa NVARCHAR(500),
+    TenHinhAnh NVARCHAR(100)
+);
+
+-- Bang 2: Quai vat va Boss
+CREATE TABLE QuaiVat (
+    QuaiID INT PRIMARY KEY IDENTITY(1,1),
+    TenQuai NVARCHAR(100) NOT NULL,
+    MauToiDa INT NOT NULL,
+    TanCongGoc INT DEFAULT 0,
+    LaBoss BIT DEFAULT 0,
+    TenHinhAnh NVARCHAR(100)
+);
+
+-- Bang 3: Cac nut tren ban do
+CREATE TABLE NutBanDo (
+    NutID INT PRIMARY KEY IDENTITY(1,1),
+    Tang INT NOT NULL,
+    LoaiNut NVARCHAR(50), 
+    ViTriX FLOAT           
+);
+
+-- Bang 4: Duong noi (Path)
+CREATE TABLE DuongNoiBanDo (
+    NutTruocID INT FOREIGN KEY REFERENCES NutBanDo(NutID),
+    NutSauID INT FOREIGN KEY REFERENCES NutBanDo(NutID),
+    PRIMARY KEY (NutTruocID, NutSauID)
+);
+
+-- Bang 5: Luot choi (Run)
+CREATE TABLE LuotChoi (
+    RunID INT PRIMARY KEY IDENTITY(1,1),
+    TenNguoiChoi NVARCHAR(100) DEFAULT N'Ngu Hon Su',
+    MauToiDa INT DEFAULT 80,
+    MauHienTai INT DEFAULT 80,
+    AtkHienTai INT DEFAULT 5,
+    StressHienTai INT DEFAULT 0,
+    KietSucHienTai INT DEFAULT 0,
+    ManaHienTai INT DEFAULT 3,
+    TienVang INT DEFAULT 50,
+    NutHienTaiID INT FOREIGN KEY REFERENCES NutBanDo(NutID),
+    TrangThai NVARCHAR(20) DEFAULT 'Active'
+);
+
+-- Bang 6: Hanh trang the (Deck)
+CREATE TABLE HanhTrangThe (
+    HanhTrangID INT PRIMARY KEY IDENTITY(1,1),
+    RunID INT FOREIGN KEY REFERENCES LuotChoi(RunID),
+    TheID INT FOREIGN KEY REFERENCES ThuVienTheBai(TheID)
+);
+
+-- =============================================
+-- BANG MO RONG CHO HE THONG COMBO AI
+-- =============================================
+
+-- Bang 7: Danh muc cac hanh dong le cua quai
+CREATE TABLE HanhDongQuai (
+    ActionID INT PRIMARY KEY IDENTITY(1,1),
+    MaLoai NVARCHAR(20), -- ATK, STR_UP, STRESS_UP, EXHAUST_UP, DEF, HEAL, BLEED, POISON, SCOUT
+    TenHanhDong NVARCHAR(100),
+    GiaTriMin INT DEFAULT 0,
+    GiaTriMax INT DEFAULT 0,
+    SoLuot INT DEFAULT 0 -- Dung cho hieu ung duy tri (Bleed, Poison)
+);
+
+-- Bang 8: Danh sach cac bo Combo
+CREATE TABLE ComboQuai (
+    ComboID INT PRIMARY KEY IDENTITY(1,1),
+    QuaiID INT FOREIGN KEY REFERENCES QuaiVat(QuaiID),
+    TenCombo NVARCHAR(100)
+);
+
+-- Bang 9: Thu tu cac hanh dong trong 1 Combo
+CREATE TABLE ChiTietCombo (
+    ComboID INT FOREIGN KEY REFERENCES ComboQuai(ComboID),
+    ActionID INT FOREIGN KEY REFERENCES HanhDongQuai(ActionID),
+    ThuTu INT, -- Hanh dong 1, hanh dong 2... trong turn
+    PRIMARY KEY (ComboID, ThuTu)
+);
+GO
+
+-- =============================================
+-- 3. INSERT DATA: THU VIEN THE BAI
+-- =============================================
+INSERT INTO ThuVienTheBai (MaThe, TenThe, HaoTonMana, CongSatThuong, GiaTriGiap, GiamStress, GiamKietSuc, HoiMana, MoTa, TenHinhAnh) VALUES  
+('ATK_01', N'Tram Kich', 1, 3, 0, 0, 0, 0, N'Gay sat thuong = ATK + 3.', 'tramkich.png'),
+('DEF_01', N'Phong Ho', 1, 0, 5, 0, 0, 0, N'Nhan 5 Giap.', 'kienthu.png'),
+('SKL_STRESS', N'Tinh Tam', 1, 0, 0, -2, 0, 0, N'Giam 2 diem Stress.', 'tinhtam.png'),
+('SKL_EXHAUST', N'Tha Long', 1, 0, 0, 0, -2, 0, N'Giam 2 diem Kiet suc.', 'thalong.png'),
+('SKL_MANA', N'Hoi Khi', 0, 0, 0, 0, 0, 1, N'Cong ngay 1 Mana.', 'hoisuc.png');
+
+-- =============================================
+-- 4. INSERT DATA: QUAI VAT
+-- =============================================
+INSERT INTO QuaiVat (TenQuai, MauToiDa, TanCongGoc, LaBoss, TenHinhAnh) VALUES  
+(N'Xuong Can Chien', 25, 5, 0, 'quaixuong-canchien.png'), -- ID 1
+(N'Xuong Xa Thu', 20, 4, 0, 'xuong-xathu.png');           -- ID 2
+
+-- =============================================
+-- 5. INSERT DATA: HANH DONG LE (POOLS)
+-- =============================================
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES 
+('STR_UP', N'Cuong hoa Strength', 2, 5, 0),    -- ID 1
+('ATK', N'Tan cong co ban', 0, 0, 0),         -- ID 2 (Lay TanCongGoc + Strength)
+('STRESS_UP', N'Gao ru (Stress)', 2, 5, 0),   -- ID 3
+('DEF', N'Tao Giap', 5, 10, 0),               -- ID 4
+('EXHAUST_UP', N'Nem lo thuoc (Kiet suc)', 2, 5, 0), -- ID 5
+('BLEED', N'Gay chay mau', 5, 5, 2),          -- ID 6
+('HEAL', N'Uong lo thuoc hoi phuc', 10, 10, 0), -- ID 7
+('POISON', N'Tam doc', 5, 5, 3),              -- ID 8
+('SCOUT', N'Trinh sat (Lay Nang Luong)', 3, 3, 0); -- ID 9
+
+-- =============================================
+-- 6. THIET LAP COMBO CHO QUAI VAT
+-- =============================================
+
+-- --- XUONG CAN CHIEN (QuaiID 1) ---
+INSERT INTO ComboQuai (QuaiID, TenCombo) VALUES (1, N'Combo Cuong No'), (1, N'Combo De doa'), (1, N'Combo Suy kiet'), (1, N'Combo Phong thu');
+-- CT Combo 1: Cuong hoa -> Tan cong
+INSERT INTO ChiTietCombo VALUES (1, 1, 1), (1, 2, 2);
+-- CT Combo 2: Gao ru -> Tao giap
+INSERT INTO ChiTietCombo VALUES (2, 3, 1), (2, 4, 2);
+-- CT Combo 3: Nem lo thuoc -> Tan cong
+INSERT INTO ChiTietCombo VALUES (3, 5, 1), (3, 2, 2);
+-- CT Combo 4: Tao giap -> Tan cong
+INSERT INTO ChiTietCombo VALUES (4, 4, 1), (4, 2, 2);
+
+-- --- XUONG XA CHIEN (QuaiID 2) ---
+INSERT INTO ComboQuai (QuaiID, TenCombo) VALUES (2, N'Combo Am sat'), (2, N'Combo Xa kich'), (2, N'Combo Hoi phuc'), (2, N'Combo Tam doc'), (2, N'Combo Quay nhieu');
+-- CT Combo 5: Cuong hoa -> Chay mau
+INSERT INTO ChiTietCombo VALUES (5, 1, 1), (5, 6, 2);
+-- CT Combo 6: Tan cong -> Tao giap (Gia tri giap cho Xa chien mac dinh 5)
+INSERT INTO ChiTietCombo VALUES (6, 2, 1), (6, 4, 2); 
+-- CT Combo 7: Gao ru (Stress 2) -> Hoi phuc 10
+INSERT INTO ChiTietCombo VALUES (7, 3, 1), (7, 7, 2);
+-- CT Combo 8: Tam doc -> Tan cong
+INSERT INTO ChiTietCombo VALUES (8, 8, 1), (8, 2, 2);
+-- CT Combo 9: Trinh sat -> Tao giap
+INSERT INTO ChiTietCombo VALUES (9, 9, 1), (9, 4, 2);
+
+-- =============================================
+-- 7. INSERT DATA: BAN DO 15 TANG & PATHS
+-- =============================================
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(1, 'CombatLow', 0), (2, 'Event', -0.5), (2, 'CombatLow', 0.5), (3, 'Shop', 0), (15, 'Boss', 0);
+-- (Luu y: Ban co the insert tiep 15 tang nhu script truoc do)
+
+INSERT INTO DuongNoiBanDo (NutTruocID, NutSauID) VALUES (1,2), (1,3), (2,4), (3,4);
+
+-- =============================================
+-- 8. KHOI TAO RUN 1 & HANH TRANG
+-- =============================================
+INSERT INTO LuotChoi (TenNguoiChoi, NutHienTaiID, TienVang) VALUES (N'Ngu Hon Su 01', 1, 100);
+
+INSERT INTO HanhTrangThe (RunID, TheID) 
+SELECT 1, 1 FROM (VALUES (1),(2),(3),(4),(5)) AS T(N) UNION ALL
+SELECT 1, 2 FROM (VALUES (1),(2),(3),(4),(5)) AS T(N);
+INSERT INTO HanhTrangThe (RunID, TheID) VALUES (1, 3), (1, 4), (1, 5);
+GO
+-- =============================================
+-- 1. DỌN DẸP DỮ LIỆU CŨ VÀ RESET IDENTITY
+-- =============================================
+DELETE FROM DuongNoiBanDo;
+DELETE FROM NutBanDo;
+DBCC CHECKIDENT ('NutBanDo', RESEED, 0);
+GO
+
+-- =============================================
+-- 2. TẠO CÁC NÚT (NODES) CHO 15 TẦNG
+-- =============================================
+
+-- Tầng 1: Điểm bắt đầu (ID: 1)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES (1, 'CombatLow', 0);
+
+-- Tầng 2: Mở rộng nhánh (ID: 2, 3, 4)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(2, 'CombatLow', -0.8), (2, 'Event', 0), (2, 'CombatLow', 0.8);
+
+-- Tầng 3: Nhánh dày đặc (ID: 5, 6, 7, 8)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(3, 'CombatMid', -1.2), (3, 'Shop', -0.4), (3, 'CombatHigh', 0.4), (3, 'Event', 1.2);
+
+-- Tầng 4: Lựa chọn hồi phục (ID: 9, 10, 11)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(4, 'Forge', -0.6), (4, 'CombatMid', 0), (4, 'Event', 0.6);
+
+-- Tầng 5: Trạm nghỉ giữa chừng (ID: 12, 13, 14, 15)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(5, 'CombatMid', -1.5), (5, 'Shop', -0.5), (5, 'Forge', 0.5), (5, 'CombatHigh', 1.5);
+
+-- Tầng 6: Nhánh hẹp (ID: 16, 17, 18)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(6, 'CombatMid', -0.8), (6, 'Event', 0), (6, 'CombatMid', 0.8);
+
+-- Tầng 7: Thử thách Elite (ID: 19, 20, 21, 22)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(7, 'CombatHigh', -1.2), (7, 'CombatMid', -0.4), (7, 'Event', 0.4), (7, 'Shop', 1.2);
+
+-- Tầng 8: Tái cơ cấu (ID: 23, 24, 25)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(8, 'Forge', -0.6), (8, 'Event', 0), (8, 'CombatMid', 0.6);
+
+-- Tầng 9: Đỉnh điểm hầm ngục (ID: 26, 27, 28, 29)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(9, 'CombatHigh', -1.5), (9, 'CombatHigh', -0.5), (9, 'Shop', 0.5), (9, 'Event', 1.5);
+
+-- Tầng 10: Nhánh ổn định (ID: 30, 31, 32)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(10, 'CombatMid', -0.8), (10, 'Forge', 0), (10, 'CombatMid', 0.8);
+
+-- Tầng 11: Nhánh dày đặc cuối (ID: 33, 34, 35, 36)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(11, 'CombatHigh', -1.2), (11, 'Event', -0.4), (11, 'Shop', 0.4), (11, 'CombatHigh', 1.2);
+
+-- Tầng 12: Chuẩn bị về đích (ID: 37, 38, 39)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(12, 'Forge', -0.6), (12, 'CombatMid', 0), (12, 'Event', 0.6);
+
+-- Tầng 13: Cửa ngõ cuối (ID: 40, 41)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES 
+(13, 'Shop', -0.5), (13, 'Forge', 0.5);
+
+-- Tầng 14: Hành lang tăm tối trước Boss (ID: 42)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES (14, 'Event', 0);
+
+-- Tầng 15: TRÙM CUỐI (ID: 43)
+INSERT INTO NutBanDo (Tang, LoaiNut, ViTriX) VALUES (15, 'Boss', 0);
+GO
+
+-- =============================================
+-- 3. KẾT NỐI (PATHS) - DẪN DẮT CON ĐƯỜNG
+-- =============================================
+
+-- Từ Tầng 1 sang Tầng 2
+INSERT INTO DuongNoiBanDo VALUES (1,2), (1,3), (1,4);
+
+-- Từ Tầng 2 sang Tầng 3 (Tạo nhánh đan xen)
+INSERT INTO DuongNoiBanDo VALUES (2,5), (2,6), (3,6), (3,7), (4,7), (4,8);
+
+-- Từ Tầng 3 sang Tầng 4
+INSERT INTO DuongNoiBanDo VALUES (5,9), (6,9), (6,10), (7,10), (7,11), (8,11);
+
+-- Từ Tầng 4 sang Tầng 5
+INSERT INTO DuongNoiBanDo VALUES (9,12), (9,13), (10,13), (10,14), (11,14), (11,15);
+
+-- Từ Tầng 5 sang Tầng 6
+INSERT INTO DuongNoiBanDo VALUES (12,16), (13,16), (13,17), (14,17), (14,18), (15,18);
+
+-- Từ Tầng 6 sang Tầng 7
+INSERT INTO DuongNoiBanDo VALUES (16,19), (16,20), (17,20), (17,21), (18,21), (18,22);
+
+-- Từ Tầng 7 sang Tầng 8
+INSERT INTO DuongNoiBanDo VALUES (19,23), (20,23), (20,24), (21,24), (21,25), (22,25);
+
+-- Từ Tầng 8 sang Tầng 9
+INSERT INTO DuongNoiBanDo VALUES (23,26), (23,27), (24,27), (24,28), (25,28), (25,29);
+
+-- Từ Tầng 9 sang Tầng 10
+INSERT INTO DuongNoiBanDo VALUES (26,30), (27,30), (27,31), (28,31), (28,32), (29,32);
+
+-- Từ Tầng 10 sang Tầng 11
+INSERT INTO DuongNoiBanDo VALUES (30,33), (30,34), (31,34), (31,35), (32,35), (32,36);
+
+-- Từ Tầng 11 sang Tầng 12
+INSERT INTO DuongNoiBanDo VALUES (33,37), (34,37), (34,38), (35,38), (35,39), (36,39);
+
+-- Từ Tầng 12 sang Tầng 13
+INSERT INTO DuongNoiBanDo VALUES (37,40), (38,40), (38,41), (39,41);
+
+-- Từ Tầng 13 sang Tầng 14 (Hội tụ)
+INSERT INTO DuongNoiBanDo VALUES (40,42), (41,42);
+
+-- Từ Tầng 14 sang Tầng 15 (Boss)
+INSERT INTO DuongNoiBanDo VALUES (42,43);
+GO
+-- Chạy lệnh này trong SQL Server của bạn
+ALTER TABLE LuotChoi ADD StressToiDa INT DEFAULT 10;
+ALTER TABLE LuotChoi ADD KietSucToiDa INT DEFAULT 10;
+GO
+-- Cập nhật giá trị mặc định cho lượt chơi hiện tại
+UPDATE LuotChoi SET StressToiDa = 10, KietSucToiDa = 10 WHERE StressToiDa IS NULL;
+
+	INSERT INTO ThuVienTheBai (MaThe, TenThe, HaoTonMana, CongSatThuong, GiaTriGiap, GiamStress, GiamKietSuc, HoiMana, MoTa, TenHinhAnh) VALUES  
+	('THAICUC', N'Thái Cực', 2, 0, 0, 0, 0, 0, N'Giảm 50% Stress & Kiệt sức. Hồi máu bằng tổng lượng giảm.', 'thaicuc.png'),
+	('CUONGHOA_TC', N'Cường Hóa TC', 1, 4, 0, 0, 0, 0, N'Tăng 4 ATK trong 3 lượt.', 'cuonghoa-tc.png'),
+	('DOCDUOC', N'Độc Dược', 1, 0, 0, 0, 0, 0, N'Kẻ địch trúng độc (3 sát thương/lượt) trong 3 lượt.', 'docduoc.png'),
+	('BORIU', N'Bổ Rìu', 1, 4,0,0,0,0, N'Gây sát thương = ATK + 4.', 'boriu.png'),
+	('HUNGPHAN', N'Hưng Phấn', 1, 0,0,-1,-1,0, N'Giảm 1 Stress và 1 Kiệt sức.', 'hungphan.png');
+
+
+	USE GameTheBai;
+GO
+
+-- 1. Thêm cột LaElite vào bảng QuaiVat
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('QuaiVat') AND name = 'LaElite')
+BEGIN
+    ALTER TABLE QuaiVat ADD LaElite BIT DEFAULT 0;
+END
+GO
+
+-- 2. Cập nhật dữ liệu cho quái hiện có
+UPDATE QuaiVat SET LaElite = 0 WHERE LaElite IS NULL;
+GO
+
+-- 3. Nạp quái vật Tinh Anh (Icon đầu lâu) mẫu để test
+-- 1. Tạo quái Elite U Linh - Kị Sĩ
+USE GameTheBai;
+GO
+
+-- =============================================
+-- 1. KHỞI TẠO BIẾN ĐỂ LẤY ID TỰ ĐỘNG
+-- =============================================
+DECLARE @KnightID INT, @ActStress INT, @ActAtk INT, @ActDef INT, @ActHot INT, 
+        @ActAtkX2 INT, @ActS_Dot INT, @ActA_Dot INT, @ActMass INT, @ActStr INT;
+
+DECLARE @CB1 INT, @CB2 INT, @CB3 INT, @CB4 INT;
+
+-- =============================================
+-- 2. TẠO QUÁI VẬT (NẾU CHƯA CÓ)
+-- =============================================
+IF NOT EXISTS (SELECT 1 FROM QuaiVat WHERE TenQuai = N'U LINH - KỊ SĨ')
+BEGIN
+    INSERT INTO QuaiVat (TenQuai, MauToiDa, TanCongGoc, LaBoss, LaElite, TenHinhAnh) 
+    VALUES (N'U LINH - KỊ SĨ', 100, 7, 0, 1, 'ghost-knight.png');
+END
+SET @KnightID = (SELECT QuaiID FROM QuaiVat WHERE TenQuai = N'U LINH - KỊ SĨ');
+
+-- =============================================
+-- 3. NẠP HÀNH ĐỘNG VÀ LẤY ID VÀO BIẾN
+-- =============================================
+-- (Sử dụng UNION để nạp nhanh và bắt ID chuẩn)
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('STRESS_UP', N'Gầm Thét', 2, 2, 0);
+SET @ActStress = SCOPE_IDENTITY();
+
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('DEF', N'Giáp U Linh', 10, 10, 0);
+SET @ActDef = SCOPE_IDENTITY();
+
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('HOT', N'U Linh Bảo Mệnh', 3, 3, 4);
+SET @ActHot = SCOPE_IDENTITY();
+
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('ATK_X2', N'Không Khoan Nhượng', 0, 0, 0);
+SET @ActAtkX2 = SCOPE_IDENTITY();
+
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('STRESS_DOT', N'Màn Sương', 2, 2, 2);
+SET @ActS_Dot = SCOPE_IDENTITY();
+
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('ARMOR_DOT', N'Ý Chí Hiệp Sĩ', 5, 5, 3);
+SET @ActA_Dot = SCOPE_IDENTITY();
+
+INSERT INTO HanhDongQuai (MaLoai, TenHanhDong, GiaTriMin, GiaTriMax, SoLuot) VALUES ('MASS_DEBUFF', N'Lãnh Địa Vong Hồn', 3, 3, 0);
+SET @ActMass = SCOPE_IDENTITY();
+
+-- Lấy lại ID của các hành động cũ (nếu đã có trong DB)
+SET @ActAtk = (SELECT TOP 1 ActionID FROM HanhDongQuai WHERE MaLoai = 'ATK');
+SET @ActStr = (SELECT TOP 1 ActionID FROM HanhDongQuai WHERE MaLoai = 'STR_UP');
+
+-- =============================================
+-- 4. TẠO 4 COMBO HEADER VÀ LẤY ID
+-- =============================================
+INSERT INTO ComboQuai (QuaiID, TenCombo) VALUES (@KnightID, N'Kị Sĩ Xuất Quân');
+SET @CB1 = SCOPE_IDENTITY();
+
+INSERT INTO ComboQuai (QuaiID, TenCombo) VALUES (@KnightID, N'Sát Ý Hoàng Gia');
+SET @CB2 = SCOPE_IDENTITY();
+
+INSERT INTO ComboQuai (QuaiID, TenCombo) VALUES (@KnightID, N'Vinh Quang Tử Sĩ');
+SET @CB3 = SCOPE_IDENTITY();
+
+INSERT INTO ComboQuai (QuaiID, TenCombo) VALUES (@KnightID, N'Vũ Điệu Giáo Dài');
+SET @CB4 = SCOPE_IDENTITY();
+
+-- =============================================
+-- 5. CHI TIẾT COMBO (FIX TRIỆT ĐỂ LỖI FK)
+-- =============================================
+
+-- Combo 1: (A) Gầm thét, Đâm giáo -> (B) Giáp u linh, U linh bảo mệnh
+INSERT INTO ChiTietCombo (ComboID, ActionID, ThuTu) VALUES 
+(@CB1, @ActStress, 1), (@CB1, @ActAtk, 2), -- Phase A
+(@CB1, @ActDef, 3), (@CB1, @ActHot, 4);    -- Phase B
+
+-- Combo 2: (A) Không khoan nhượng (X2 ATK) -> (B) Màn sương, Cường hóa
+INSERT INTO ChiTietCombo (ComboID, ActionID, ThuTu) VALUES 
+(@CB2, @ActAtkX2, 1), (@CB2, @ActAtkX2, 2), -- Phase A
+(@CB2, @ActS_Dot, 3), (@CB2, @ActStr, 4);   -- Phase B
+
+-- Combo 3: (A) Ý chí hiệp sĩ, Đâm giáo -> (B) Lãnh địa vong hồn, U linh bảo mệnh
+INSERT INTO ChiTietCombo (ComboID, ActionID, ThuTu) VALUES 
+(@CB3, @ActA_Dot, 1), (@CB3, @ActAtk, 2),    -- Phase A
+(@CB3, @ActMass, 3), (@CB3, @ActHot, 4);    -- Phase B
+
+-- Combo 4: (A) Giáp u linh, Cường hóa -> (B) Đâm giáo, Màn sương
+INSERT INTO ChiTietCombo (ComboID, ActionID, ThuTu) VALUES 
+(@CB4, @ActDef, 1), (@CB4, @ActStr, 2),      -- Phase A
+(@CB4, @ActAtk, 3), (@CB4, @ActS_Dot, 4);   -- Phase B
+
+PRINT 'Setup U Linh - Ki Si thanh cong!';
+GO
+delete HanhTrangThe
+delete LuotChoi
